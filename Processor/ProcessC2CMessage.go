@@ -140,7 +140,7 @@ func (p *Processors) ProcessC2CMessage(data *dto.WSC2CMessageData) error {
 				SelfID:      selfid64,
 				UserID:      userid64,
 				Sender: PrivateSender{
-					Nickname: "", //这个不支持,但加机器人好友,会收到一个事件,可以对应储存获取,用idmaps可以做到.
+					Nickname: data.Author.Username,
 					UserID:   userid64,
 				},
 				SubType: "friend",
@@ -190,7 +190,7 @@ func (p *Processors) ProcessC2CMessage(data *dto.WSC2CMessageData) error {
 				SelfID:      selfid64,
 				UserID:      data.Author.ID,
 				Sender: PrivateSenderS{
-					Nickname: "", //这个不支持,但加机器人好友,会收到一个事件,可以对应储存获取,用idmaps可以做到.
+					Nickname: data.Author.Username,
 					UserID:   data.Author.ID,
 				},
 				SubType: "friend",
@@ -232,7 +232,7 @@ func (p *Processors) ProcessC2CMessage(data *dto.WSC2CMessageData) error {
 			struserid = data.Author.ID
 		}
 		userdata := structs.FriendData{
-			Nickname: "",
+			Nickname: data.Author.Username,
 			Remark:   "",
 			UserID:   struserid,
 		}

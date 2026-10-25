@@ -120,10 +120,20 @@ func StartUsernameCacheCleanup() {
 
 // StoreUserName 存储虚拟ID对应的用户名
 func StoreUserName(virtualID, username string) {
+	if username == "" {
+		return
+	}
 	usernameCache.Store(virtualID, usernameCacheItem{
 		Username:  username,
 		Timestamp: time.Now(),
 	})
+	rawID, err := RetrieveRowByIDv2(virtualID)
+	if err != nil {
+		return
+	}
+	if err := StoreUserInfo(rawID, structs.FriendData{Nickname: username, UserID: virtualID}); err != nil {
+		mylog.Printf("保存用户昵称失败: %v", err)
+	}
 }
 
 // GetUserName 获取虚拟ID对应的用户名，过期或不存在返回空串
@@ -2268,7 +2278,16 @@ func StoreUserInfo(rawID string, userInfo structs.FriendData) error {
 		b := tx.Bucket([]byte(UserInfoBucket))
 		key := fmt.Sprintf("%s:%s", rawID, userInfo.UserID) // 创建复合键
 		if v := b.Get([]byte(key)); v != nil {
-			return fmt.Errorf("duplicate key: %s", key)
+			var existing structs.FriendData
+			if err := json.Unmarshal(v, &existing); err != nil {
+				return fmt.Errorf("could not decode user info: %w", err)
+			}
+			if userInfo.Nickname == "" {
+				userInfo.Nickname = existing.Nickname
+			}
+			if userInfo.Remark == "" {
+				userInfo.Remark = existing.Remark
+			}
 		}
 
 		// 序列化用户信息作为值

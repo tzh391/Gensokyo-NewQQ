@@ -235,36 +235,11 @@ func HandleSendPrivateMsg(client callapi.Client, api openapi.OpenAPI, apiv2 open
 		return "", nil
 	}
 
-	var idInt64 int64
 	var err error
 
-	if message.Params.UserID != nil && identity.IsOpenID(message.Params.UserID.(string)) {
-		idInt64, err = idmap.GenerateRowID(message.Params.UserID.(string), 9)
-		// 临时的
+	// send_private_msg 已明确指定私聊，缺少类型缓存时直接走 C2C，避免递归重复发送。
+	if msgType == "" || (message.Params.UserID != nil && identity.IsOpenID(message.Params.UserID.(string))) {
 		msgType = "group_private"
-	} else {
-		if message.Params.GroupID != "" {
-			idInt64, err = ConvertToInt64(message.Params.GroupID)
-		} else if message.Params.UserID != "" {
-			idInt64, err = ConvertToInt64(message.Params.UserID)
-		}
-	}
-
-	//设置递归 对直接向gsk发送action时有效果
-	if msgType == "" {
-		messageCopy := message
-		if err != nil {
-			mylog.Printf("错误：无法转换 ID %v\n", err)
-		} else {
-			// 递归1次（枚举剩余消息类型，当前仅 group）
-			echo.AddMapping(idInt64, 2)
-			// 递归调用handleSendPrivateMsg，使用设置的消息类型
-			echo.AddMsgType(config.GetAppIDStr(), idInt64, "group_private")
-			HandleSendPrivateMsg(client, api, apiv2, messageCopy)
-		}
-	} else if echo.GetMapping(idInt64) <= 0 {
-		// 特殊值代表不递归
-		echo.AddMapping(idInt64, 10)
 	}
 
 	var resp *dto.C2CMessageResponse
@@ -756,25 +731,6 @@ func HandleSendPrivateMsg(client callapi.Client, api openapi.OpenAPI, apiv2 open
 		}
 	default:
 		mylog.Printf("Unknown message type: %s", msgType)
-	}
-
-	// 如果递归id不是10(不递归特殊值)
-	if echo.GetMapping(idInt64) != 10 {
-		//重置递归类型
-		if echo.GetMapping(idInt64) <= 0 {
-			echo.AddMsgType(config.GetAppIDStr(), idInt64, "")
-		}
-		echo.AddMapping(idInt64, echo.GetMapping(idInt64)-1)
-
-		//递归3次枚举类型
-		if echo.GetMapping(idInt64) > 0 {
-			tryMessageTypes := []string{"group"}
-			messageCopy := message // 创建message的副本
-			echo.AddMsgType(config.GetAppIDStr(), idInt64, tryMessageTypes[echo.GetMapping(idInt64)-1])
-			delay := config.GetSendDelay()
-			time.Sleep(time.Duration(delay) * time.Millisecond)
-			retmsg, _ = HandleSendPrivateMsg(client, api, apiv2, messageCopy)
-		}
 	}
 
 	return retmsg, nil

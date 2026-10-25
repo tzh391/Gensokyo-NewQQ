@@ -257,7 +257,8 @@ Handler 签名：`func(client callapi.Client, api openapi.OpenAPI, apiv2 openapi
 
 - `RetrieveRowByIDv2(虚拟ID)` → 真实 OpenID
 - `RetrieveVirtualValuev2(OpenID)` → 虚拟 ID
-- `StoreUserName(虚拟ID, 用户名)` / `GetUserName(虚拟ID)` — 内存缓存，10 分钟 TTL
+- `StoreUserName(虚拟ID, 用户名)` / `GetUserName(虚拟ID)` — 内存缓存，10 分钟 TTL；已建立映射的非空昵称还写入用户资料，供 `get_friend_list` 返回
+- `StoreUserInfo` — 同一用户资料合并更新，空昵称/备注保留已有值；C2C 数字 `user_id` 回执不得再次调用映射生成新号码
 - 支持 gRPC 远程模式（`idmap/grpc.go`，需 `-tags=!small`）
 
 ### echo 系统
@@ -313,6 +314,7 @@ Handler 签名：`func(client callapi.Client, api openapi.OpenAPI, apiv2 openapi
 
 ### 构建注意事项
 
+- **前端依赖**：CI 使用 `npm ci`；修改 `frontend/package.json` 后必须同步锁文件，避免缺少已声明的 Vitest 等依赖导致完整构建失败。
 - **构建产物**输出到 `release/` 目录，命名格式 `gensokyo-{os}-{arch}[-noWebui][.exe]`
 - **构建标签**：`-tags=small` 会移除 WebUI、gRPC、QR 码、OSS 后端（阿里云/百度云/腾讯云），通过 `//go:build !small` 控制
 - **`go:embed` 要求**：`webui/dist/` 目录必须存在（含占位文件），否则 `go build` 因 `go:embed` 失败。`build.ps1` 的 `Ensure-WebUIDist` 会自动创建占位文件；手动 `go build` 前需确保该目录存在

@@ -592,10 +592,14 @@ func SendC2CResponse(client callapi.Client, err error, message *callapi.ActionMe
 		// 无真实 message_id 不再伪造固定假值,诚实置 0;RetCode/Status 保持现状(官方审核异步假失败但消息可能已发)
 		response.Data.MessageID = 0
 	}
-	//将真实id转为int userid64
-	userid64, errr := idmap.StoreIDv2(message.Params.UserID.(string))
+	// 数字 user_id 已是下游使用的虚拟 ID，不能再次映射。
+	userID := message.Params.UserID.(string)
+	userid64, errr := strconv.ParseInt(userID, 10, 64)
 	if errr != nil {
-		mylog.Errorf("Error storing ID: %v", err)
+		userid64, errr = idmap.StoreIDv2(userID)
+	}
+	if errr != nil {
+		mylog.Errorf("Error storing ID: %v", errr)
 	}
 	response.UserID = userid64
 	response.Echo = message.Echo

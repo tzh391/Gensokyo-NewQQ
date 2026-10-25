@@ -45,6 +45,15 @@
 
 ## 🐛 修复
 
+### 私聊定时消息重复发送与昵称资料更新（2026-10-26）
+
+下游仅发出一次 `send_private_msg` 时，未知类型缓存曾触发 `group_private` / `group` 两次 C2C 发送；群事件中的真实昵称也仅进入短期内存缓存，无法经 `get_friend_list` 提供给私聊定时模板。
+
+- **修改**：`handlers/send_private_msg.go` 直接为未知类型选择 C2C，移除递归枚举；`handlers/message_parser.go` 保留数字 `user_id`，避免回执再次映射。
+- **昵称资料**：`idmap/service.go` 将已建立映射的非空观测昵称写入用户资料；同一资料合并更新，空昵称/备注保留已有值。`Processor/ProcessC2CMessage.go` 使用事件提供的 `author.username` 填写昵称。
+- **影响**：`get_friend_list` 是历史交互缓存，可能包含已发言的群用户；只有事件实际提供的昵称可用。QQ 真实号码与虚拟 ID 的关系、群定时模板变量仍由平台和下游框架决定。
+- **验证**：`go build ./...`、`go vet ./...`、`go test ./... -count=1` 通过；新增回归覆盖单次发送/回执、回执 ID、昵称过期持久化及空值合并。
+
 ### 官方口径再对齐（2026-10-19）
 
 按 QQ 官方现文档核对三处口径，均不影响对外契约：
@@ -95,6 +104,12 @@
 ---
 
 ## 📝 工程与文档变更
+
+### 同步前端依赖锁文件（2026-10-26）
+
+`frontend/package.json` 已声明的 Vitest 未完整写入 `package-lock.json`，导致原工作流 `npm ci` 报依赖不同步。补齐 Vitest 及其依赖解析，保留原有依赖声明，使完整 WebUI 构建可以从干净安装继续执行。
+
+- **验证**：干净 `npm ci`、`npm run build`、前端 4 项测试和 `npm run test:syntax` 通过。
 
 ### 文档同步（群管理三接口 + 入站新字段）
 
