@@ -268,7 +268,7 @@ func HandleSendGroupMsg(client callapi.Client, api openapi.OpenAPI, apiv2 openap
 					if !ok {
 						mylog.Println("UserID is not a string")
 						// 处理类型断言失败的情况
-					} else {
+					} else if userID != "" && userID != "0" {
 						originalUserID, err = idmap.RetrieveRowByIDv2(userID)
 						if err != nil {
 							mylog.Printf("Error retrieving original UserID: %v", err)

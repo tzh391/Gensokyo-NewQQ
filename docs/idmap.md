@@ -76,6 +76,22 @@ op_userid_type: vuin
 - rUIN 使用 `rUIN-<PLATFORM>-<index>-<id>`。
 - 当客户端传入纯数字时，默认按 vUIN 处理；如需阻止推测，使用 `op_userid_type` 指定策略。
 
+## 将下游数字手动绑定为已知号码
+
+默认构建、`idmap_isolation: false` 时，可以把已有映射的数字改成用户确认的 QQ 号或群号；QQ 平台仍通过 OpenID 通信，程序不能从 OpenID 自动计算真实号码。
+
+先备份 `idmap-identity.db`、`idmap-msg.db` 和下游数据，再由 `master_id` 中已授权的用户发送命令（以下使用默认 `bind_prefix: /bind`）：
+
+```text
+/me
+/bind 当前群数字ID 已确认的群号
+/bind 当前用户数字ID 已确认的QQ号
+```
+
+`/me` 用于确认当前映射；`/bind` 的两个参数均为数字，目标已被其他映射使用时会拒绝。应先绑定群、最后绑定自己的用户 ID，再将 `master_id` 和下游权限、定时目标等配置更新成新 ID，并重启下游刷新缓存。修改自己的用户 ID 后，旧 `master_id` 不再匹配。
+
+下游按旧 ID 保存的运势、订阅和权限等数据不会自动迁移。`idmap_isolation: true` 使用别名语义，不保证改变入站数字 ID；不要把它当作上述改号模式使用，也不要为改号直接切换现有数据库的隔离模式。
+
 ## 写入路径
 
 收到腾讯侧事件时：

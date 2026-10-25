@@ -373,7 +373,7 @@ settings:
   ws_server_token: "12345"                             # 正向 WS token
   http_address: "0.0.0.0:5700"                         # HTTP API
   http_access_token: ""                                # HTTP token
-  post_url: [""]                                       # 反向 HTTP POST
+  post_url: []                                         # 反向 HTTP POST；空列表关闭
 
   #── 事件订阅 ────────────────────────────────────────
     # - "ReadyHandler"                               # 连接成功

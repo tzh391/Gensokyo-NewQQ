@@ -333,6 +333,7 @@ Handler 签名：`func(client callapi.Client, api openapi.OpenAPI, apiv2 openapi
 
 ### 配置系统
 
+- **空 POST 目标**：未启用反向 HTTP POST 使用 `post_url: []`；分层校验兼容旧空字符串占位，`RuntimeConfig` 过滤空地址，非空非法 URL 仍拒绝。
 - **结构**：`structs.Settings` 定义配置结构体（YAML 标签），`config/config.go` 提供 `GetXxx()` 访问器（内部 `sync.RWMutex` 保护单例）
 - **热重载**：`fsnotify` 监听 `config.yml` 变动自动重载，但 `restartRequiredFields` 列表中的字段修改后需要重启
 - **`StringOb11` 模式**：`config.GetStringOb11()` 控制消息 ID 类型（string vs int64），影响大量 ID 转换逻辑

@@ -237,7 +237,7 @@ settings:
   http_timeout: 5                   #反向 HTTP 超时时间, 单位秒，<5 时将被忽略
 
   #HTTP API配置-反向http
-  post_url: [""]                    #反向HTTP POST地址列表 为空代表不开启 示例:http://192.168.0.100:5789
+  post_url: []                      #反向HTTP POST地址列表 为空代表不开启 示例:http://192.168.0.100:5789
   post_secret: [""]                 #密钥
   post_max_retries: [3]             #最大重试,0 时禁用
   post_retries_interval: [1500]     #重试时间,单位毫秒,0 时立即

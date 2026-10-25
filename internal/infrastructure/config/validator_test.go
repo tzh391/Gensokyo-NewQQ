@@ -47,6 +47,35 @@ func TestValidateSchemaRejectsInvalidURL(t *testing.T) {
 	assertValidationError(t, err, "config.transport.post_url[0]")
 }
 
+func TestLegacyEmptyPostURLDisablesTransport(t *testing.T) {
+	for _, urls := range [][]string{nil, {}, {""}, {" ", ""}} {
+		dto := ConfigDTO{Version: CurrentSchemaVersion}
+		dto.Settings.AppID = 12345
+		dto.Settings.PostUrl = urls
+		if err := Validate(dto); err != nil {
+			t.Fatalf("post_url=%q 不应阻断 bootstrap: %v", urls, err)
+		}
+		if got := buildRuntime(dto).Transport.PostUrls; len(got) != 0 {
+			t.Fatalf("post_url=%q 得到有效地址 %q, want none", urls, got)
+		}
+	}
+}
+
+func TestPostURLSkipsPlaceholdersAndStillValidatesAddresses(t *testing.T) {
+	dto := ConfigDTO{Version: CurrentSchemaVersion}
+	dto.Settings.AppID = 12345
+	dto.Settings.PostUrl = []string{"", " https://example.com/events ", " "}
+	if err := Validate(dto); err != nil {
+		t.Fatal(err)
+	}
+	got := buildRuntime(dto).Transport.PostUrls
+	if len(got) != 1 || got[0] != "https://example.com/events" {
+		t.Fatalf("有效地址 = %q", got)
+	}
+	dto.Settings.PostUrl = append(dto.Settings.PostUrl, "not-a-url")
+	assertValidationError(t, Validate(dto), "config.transport.post_url[3]")
+}
+
 func TestValidateSchemaRejectsEmptyAppID(t *testing.T) {
 	err := ValidateSchema(ConfigDTO{Version: CurrentSchemaVersion})
 	assertValidationError(t, err, "config.qq.app_id")

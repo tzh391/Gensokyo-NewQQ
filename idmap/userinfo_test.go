@@ -68,3 +68,24 @@ func TestObservedNicknamePersistsAndMerges(t *testing.T) {
 	StoreUserName(userID, "")
 	assertProfile("更新昵称")
 }
+
+func TestManualVirtualIDBindingRoundTrip(t *testing.T) {
+	InitializeDB()
+	rawID := strings.Repeat("f", 32)
+	oldID, err := StoreIDv2(rawID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const targetID int64 = 1940000001
+	if err := UpdateVirtualValuev2(oldID, targetID); err != nil {
+		t.Fatal(err)
+	}
+	gotID, err := StoreIDv2(rawID)
+	if err != nil || gotID != targetID {
+		t.Fatalf("绑定后入站 ID = %d, err=%v, want %d", gotID, err, targetID)
+	}
+	gotRaw, err := RetrieveRowByIDv2(strconv.FormatInt(targetID, 10))
+	if err != nil || gotRaw != rawID {
+		t.Fatalf("绑定后出站反查 = %q, err=%v, want %q", gotRaw, err, rawID)
+	}
+}

@@ -1,5 +1,7 @@
 package config
 
+import "strings"
+
 // RuntimeConfig 是程序运行时行为的视图，由 ConfigDTO 构建，对程序行为负责。
 // 业务代码通过 Snapshot.Config() 获取，禁止直接修改。
 type RuntimeConfig struct {
@@ -124,7 +126,7 @@ func buildRuntime(dto ConfigDTO) RuntimeConfig {
 			WsServerPath:   s.WsServerPath,
 			WsServerToken:  s.WsServerToken,
 			WebhookPath:    s.WebhookPath,
-			PostUrls:       append([]string(nil), s.PostUrl...),
+			PostUrls:       activePostURLs(s.PostUrl),
 			UseSelfCrt:     s.UseSelfCrt,
 			Crt:            s.Crt,
 			Key:            s.Key,
@@ -143,4 +145,14 @@ func buildRuntime(dto ConfigDTO) RuntimeConfig {
 			UploadPicV2Base64: s.UploadPicV2Base64,
 		},
 	}
+}
+
+func activePostURLs(values []string) []string {
+	var urls []string
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			urls = append(urls, value)
+		}
+	}
+	return urls
 }
