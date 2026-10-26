@@ -48,6 +48,11 @@ func TestGetCQParseModeInvalidWarnsOnce(t *testing.T) {
 	}
 
 	got := ""
+	withMode("legacy")
+	legacyLog := capture(func() { got = GetCQParseMode() })
+	if got != "legacy" || legacyLog != "" {
+		t.Errorf("显式 legacy 应合法且不消耗警告: mode=%q log=%q", got, legacyLog)
+	}
 	// 非法值（大小写错写）：回退 legacy + 恰好一次警告
 	withMode("New")
 	log1 := capture(func() {

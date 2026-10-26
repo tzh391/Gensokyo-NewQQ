@@ -257,7 +257,8 @@ Handler 签名：`func(client callapi.Client, api openapi.OpenAPI, apiv2 openapi
 
 - `RetrieveRowByIDv2(虚拟ID)` → 真实 OpenID
 - `RetrieveVirtualValuev2(OpenID)` → 虚拟 ID
-- `StoreUserName(虚拟ID, 用户名)` / `GetUserName(虚拟ID)` — 内存缓存，10 分钟 TTL
+- `StoreUserName(虚拟ID, 用户名)` / `GetUserName(虚拟ID)` — 内存缓存，10 分钟 TTL；已建立映射的非空昵称还写入用户资料，供 `get_friend_list` 返回
+- `StoreUserInfo` — 同一用户资料合并更新，空昵称/备注保留已有值；C2C 数字 `user_id` 回执不得再次调用映射生成新号码
 - 支持 gRPC 远程模式（`idmap/grpc.go`，需 `-tags=!small`）
 
 ### echo 系统
@@ -313,6 +314,7 @@ Handler 签名：`func(client callapi.Client, api openapi.OpenAPI, apiv2 openapi
 
 ### 构建注意事项
 
+- **前端依赖**：CI 使用 `npm ci`；修改 `frontend/package.json` 后必须同步锁文件，避免缺少已声明的 Vitest 等依赖导致完整构建失败。
 - **构建产物**输出到 `release/` 目录，命名格式 `gensokyo-{os}-{arch}[-noWebui][.exe]`
 - **构建标签**：`-tags=small` 会移除 WebUI、gRPC、QR 码、OSS 后端（阿里云/百度云/腾讯云），通过 `//go:build !small` 控制
 - **`go:embed` 要求**：`webui/dist/` 目录必须存在（含占位文件），否则 `go build` 因 `go:embed` 失败。`build.ps1` 的 `Ensure-WebUIDist` 会自动创建占位文件；手动 `go build` 前需确保该目录存在
@@ -331,12 +333,15 @@ Handler 签名：`func(client callapi.Client, api openapi.OpenAPI, apiv2 openapi
 
 ### 配置系统
 
+- **空 POST 目标**：未启用反向 HTTP POST 使用 `post_url: []`；分层校验兼容旧空字符串占位，`RuntimeConfig` 过滤空地址，非空非法 URL 仍拒绝。
 - **结构**：`structs.Settings` 定义配置结构体（YAML 标签），`config/config.go` 提供 `GetXxx()` 访问器（内部 `sync.RWMutex` 保护单例）
 - **热重载**：`fsnotify` 监听 `config.yml` 变动自动重载，但 `restartRequiredFields` 列表中的字段修改后需要重启
 - **`StringOb11` 模式**：`config.GetStringOb11()` 控制消息 ID 类型（string vs int64），影响大量 ID 转换逻辑
 
 ### 消息系统特殊机制
 
+- **网络图片中转**：`handlers/remote_image.go` 在 QQ URL 拉取失败（40093007/850026）后执行一次本机下载上传；群聊/私聊与 new/legacy 共用，下载上限 20 MiB。媒体上传错误必须向回执传播，不能在 `SendFoundItems*` 中丢弃或报告成功。
+- **URL 保留**：`outbound_bridge.go` 往返转换必须保留 HTTP/HTTPS（legacy 的 HTTPS 使用 `url_*s` key）；隐藏服务器 IP 时保留外部原网址。HTTP 567 的系统 curl 回退见 `remote_image_curl.go`，不启用 curl 自动重定向或关闭 TLS 校验。
 - **`LazyMessageId` 系统**：`config.GetLazyMessageId()` 启用被动转主动消息，`messageID == "2000"` 是特殊值表示主动推送。2026-08-02 修复：`GetLazyMessagesId`/`GetLazyMessagesIdv2` 移除选中后的 `usageCount++`，让同一回复链的多段回复复用同一 `msg_id`，配合 `GetMappingSeq`/`AddMappingSeq` 连续递增 `msg_seq`，避免偶发 `40054005 msgseq 去重`（Issue #19）
 - **`SSM`（Send Stack Messages）**：当消息发送失败（`code:22009`）时，消息会入队等待下次被动回复时补发
 - **`removeAt` 与 `convertOtherAt`**：`GetRemoveAt()` 控制入站时是否剥离 @bot（仅对 `GROUP_AT_MESSAGE_CREATE` 事件生效；`GROUP_MESSAGE_CREATE` 全量群消息中的 @Bot 始终剥离，不依赖此配置），`GetConvertOtherAt()` 控制是否将 @其他人 转为 CQ 码

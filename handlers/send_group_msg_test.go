@@ -29,7 +29,7 @@ func (m *mockGroupOpenAPI) PostGroupMessage(ctx context.Context, groupID string,
 	}
 	return &dto.GroupMessageResponse{
 		Message:       &dto.Message{ID: "mock-msg-id"},
-		MediaResponse: &dto.MediaResponse{Ret: 0},
+		MediaResponse: &dto.MediaResponse{Ret: 0, FileInfo: "mock-file-info"},
 	}, nil
 }
 

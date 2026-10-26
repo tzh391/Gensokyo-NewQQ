@@ -345,7 +345,7 @@ func foundItemsToParts(messageText string, foundItems map[string][]string) []mes
 			}
 		}
 		for _, v := range foundItems[m.plural] {
-			parts = append(parts, m.mk(message.MediaSource{Kind: message.MediaRemoteURL, URL: v}, v))
+			parts = append(parts, m.mk(remoteMediaSource(v, "https"), v))
 		}
 	}
 	// 文件（含 file_name）
@@ -362,7 +362,7 @@ func foundItemsToParts(messageText string, foundItems map[string][]string) []mes
 		}
 	}
 	for _, v := range foundItems["url_files"] {
-		fp := message.FilePart{Source: message.MediaSource{Kind: message.MediaRemoteURL, URL: v}, File: v}
+		fp := message.FilePart{Source: remoteMediaSource(v, "https"), File: v}
 		if fi < len(fileNames) {
 			fp.Filename = fileNames[fi]
 		}
@@ -400,17 +400,17 @@ func PartsToFoundItems(parts []message.MessagePart) (string, map[string][]string
 		case message.ReplyPart:
 			found["reply_msg_id"] = append(found["reply_msg_id"], v.MessageID)
 		case message.ImagePart:
-			k, val := legacyMediaKey(v.Source)
-			found[k+"image"] = append(found[k+"image"], val)
+			k, val := legacyMediaItem(v.Source, "image")
+			found[k] = append(found[k], val)
 		case message.AudioPart:
-			k, val := legacyMediaKey(v.Source)
-			found[k+"record"] = append(found[k+"record"], val)
+			k, val := legacyMediaItem(v.Source, "record")
+			found[k] = append(found[k], val)
 		case message.VideoPart:
-			k, val := legacyMediaKey(v.Source)
-			found[k+"video"] = append(found[k+"video"], val)
+			k, val := legacyMediaItem(v.Source, "video")
+			found[k] = append(found[k], val)
 		case message.FilePart:
-			k, val := legacyMediaKey(v.Source)
-			found[k+"file"] = append(found[k+"file"], val)
+			k, val := legacyMediaItem(v.Source, "file")
+			found[k] = append(found[k], val)
 			if v.Filename != "" {
 				found["file_name"] = append(found["file_name"], v.Filename)
 			}
@@ -440,12 +440,31 @@ func mediaSourceFromLegacy(prefix, v string) message.MediaSource {
 	case "local_":
 		return message.MediaSource{Kind: message.MediaLocalFile, Path: v}
 	case "url_":
-		return message.MediaSource{Kind: message.MediaRemoteURL, URL: v}
+		return remoteMediaSource(v, "http")
 	case "base64_":
 		return message.MediaSource{Kind: message.MediaBase64, Data: []byte(v)}
 	default:
 		return message.MediaSource{Kind: message.MediaLocalFile, Path: v}
 	}
+}
+
+func remoteMediaSource(value, scheme string) message.MediaSource {
+	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
+		value = scheme + "://" + value
+	}
+	return message.MediaSource{Kind: message.MediaRemoteURL, URL: value}
+}
+
+// legacyMediaItem 保留远程媒体的协议，HTTPS 必须回写复数 url_*s key。
+func legacyMediaItem(source message.MediaSource, kind string) (string, string) {
+	prefix, value := legacyMediaKey(source)
+	if source.Kind == message.MediaRemoteURL {
+		if strings.HasPrefix(value, "https://") {
+			return "url_" + kind + "s", strings.TrimPrefix(value, "https://")
+		}
+		value = strings.TrimPrefix(value, "http://")
+	}
+	return prefix + kind, value
 }
 
 // legacyMediaKey 与 message.compat.mediaKey 语义一致。
@@ -553,7 +572,10 @@ func SendFoundItemsGroup(ctx context.Context, groupOpenID, messageText string, f
 			msgseq := nextMappingSeq(messageID)
 			reply := generateGroupMessage(messageID, eventID, singleItem, "", msgseq, apiv2, groupOpenID)
 			if rich, ok := reply.(*dto.RichMediaMessage); ok {
-				mr, err := apiv2.PostGroupMessage(ctx, groupOpenID, rich)
+				mr, err := postGroupMediaWithFallback(ctx, groupOpenID, rich, apiv2)
+				if err != nil {
+					return lastID, err
+				}
 				if err == nil && mr != nil && mr.MediaResponse != nil && mr.MediaResponse.FileInfo != "" {
 					msgseq = nextMappingSeq(messageID)
 					content := rich.Content
@@ -670,7 +692,10 @@ func SendFoundItemsPrivate(ctx context.Context, userOpenID, messageText string, 
 			msgseq := nextMappingSeq(messageID)
 			reply := generatePrivateMessage(messageID, eventID, singleItem, "", msgseq, apiv2, userOpenID)
 			if rich, ok := reply.(*dto.RichMediaMessage); ok {
-				mr, err := apiv2.PostC2CMessage(ctx, userOpenID, rich)
+				mr, err := postPrivateMediaWithFallback(ctx, userOpenID, rich, apiv2)
+				if err != nil {
+					return lastID, err
+				}
 				if err == nil && mr != nil && mr.MediaResponse != nil && mr.MediaResponse.FileInfo != "" {
 					msgseq = nextMappingSeq(messageID)
 					content := rich.Content

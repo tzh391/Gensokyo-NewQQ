@@ -2847,7 +2847,7 @@ func GetCQParseMode() string {
 		return "legacy"
 	}
 	switch instance.Settings.CQParseMode {
-	case "shadow", "new":
+	case "legacy", "shadow", "new":
 		return instance.Settings.CQParseMode
 	default:
 		if instance.Settings.CQParseMode != "" {

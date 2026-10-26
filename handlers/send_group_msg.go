@@ -268,7 +268,7 @@ func HandleSendGroupMsg(client callapi.Client, api openapi.OpenAPI, apiv2 openap
 					if !ok {
 						mylog.Println("UserID is not a string")
 						// 处理类型断言失败的情况
-					} else {
+					} else if userID != "" && userID != "0" {
 						originalUserID, err = idmap.RetrieveRowByIDv2(userID)
 						if err != nil {
 							mylog.Printf("Error retrieving original UserID: %v", err)
@@ -387,7 +387,13 @@ func HandleSendGroupMsg(client callapi.Client, api openapi.OpenAPI, apiv2 openap
 			  fileInfo, err := uploadMedia(context.TODO(), message.Params.GroupID.(string), richMediaMessage, apiv2)
 			  if err != nil {
 			   mylog.Printf("上传图片失败: %v", err)
-			   return "", nil // 或其他错误处理
+			   if config.GetNoRetMsg() {
+			    return "", err
+			   }
+			   if config.GetStringOb11() {
+			    return SendResponseSB(client, err, &message, nil, api, apiv2)
+			   }
+			   return SendResponse(client, err, &message, nil, api, apiv2)
 			  }
 			  // 图文混合消息同样需要转换 [CQ:at] 为 @用户名，与纯文本路径对齐
 			  // 否则 QQ 官方 API 不识别 CQ 码，会原文显示 [CQ:at,qq=数字]
@@ -902,7 +908,7 @@ func HandleSendGroupMsg(client callapi.Client, api openapi.OpenAPI, apiv2 openap
 					}
 					continue // 跳过这个项，继续下一个
 				}
-				message_return, err := apiv2.PostGroupMessage(context.TODO(), message.Params.GroupID.(string), richMediaMessage)
+				message_return, err := postGroupMediaWithFallback(context.TODO(), message.Params.GroupID.(string), richMediaMessage, apiv2)
 				if err != nil {
 					mylog.Printf("发送 richMediaMessage 信息失败: %v", err)
 					mylog.Printf("%s", FormatQQError(err))
@@ -1054,7 +1060,7 @@ func isPrivateOrLoopback(rawURL string) bool {
 	host := parsed.Hostname()
 	ip := net.ParseIP(host)
 	if ip != nil {
-		return ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast()
+		return ip.IsPrivate() || !ip.IsGlobalUnicast()
 	}
 	// 域名解析后检查
 	ips, err := net.LookupHost(host)
@@ -1063,7 +1069,7 @@ func isPrivateOrLoopback(rawURL string) bool {
 	}
 	for _, ipStr := range ips {
 		ip = net.ParseIP(ipStr)
-		if ip != nil && (ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast()) {
+		if ip != nil && (ip.IsPrivate() || !ip.IsGlobalUnicast()) {
 			return true
 		}
 	}
@@ -2627,7 +2633,7 @@ func uploadMedia(ctx context.Context, groupID string, richMediaMessage *dto.Rich
 		}
 	}
 	// URL 直传（默认路径）
-	messageReturn, err := apiv2.PostGroupMessage(ctx, groupID, richMediaMessage)
+	messageReturn, err := postGroupMediaWithFallback(ctx, groupID, richMediaMessage, apiv2)
 	if err != nil {
 		// 错误保存到本地
 		if config.GetSaveError() {
@@ -3080,7 +3086,7 @@ func postGroupRichMediaMessageWithRetry(apiv2 openapi.OpenAPI, groupID string, r
 	richMediaMessage.EventID = ""
 	retryCount := 3 // 设置最大重试次数为 3
 	for i := 0; i < retryCount; i++ {
-		resp, err = apiv2.PostGroupMessage(context.TODO(), groupID, richMediaMessage)
+		resp, err = postGroupMediaWithFallback(context.TODO(), groupID, richMediaMessage, apiv2)
 		if err != nil && defaultRetryPolicy.ShouldRetry(err, i) {
 			// 仅对超时做重试
 			mylog.Printf("富媒体超时重试第 %d 次: %v", i+1, err)

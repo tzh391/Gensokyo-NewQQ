@@ -235,36 +235,11 @@ func HandleSendPrivateMsg(client callapi.Client, api openapi.OpenAPI, apiv2 open
 		return "", nil
 	}
 
-	var idInt64 int64
 	var err error
 
-	if message.Params.UserID != nil && identity.IsOpenID(message.Params.UserID.(string)) {
-		idInt64, err = idmap.GenerateRowID(message.Params.UserID.(string), 9)
-		// 临时的
+	// send_private_msg 已明确指定私聊，缺少类型缓存时直接走 C2C，避免递归重复发送。
+	if msgType == "" || (message.Params.UserID != nil && identity.IsOpenID(message.Params.UserID.(string))) {
 		msgType = "group_private"
-	} else {
-		if message.Params.GroupID != "" {
-			idInt64, err = ConvertToInt64(message.Params.GroupID)
-		} else if message.Params.UserID != "" {
-			idInt64, err = ConvertToInt64(message.Params.UserID)
-		}
-	}
-
-	//设置递归 对直接向gsk发送action时有效果
-	if msgType == "" {
-		messageCopy := message
-		if err != nil {
-			mylog.Printf("错误：无法转换 ID %v\n", err)
-		} else {
-			// 递归1次（枚举剩余消息类型，当前仅 group）
-			echo.AddMapping(idInt64, 2)
-			// 递归调用handleSendPrivateMsg，使用设置的消息类型
-			echo.AddMsgType(config.GetAppIDStr(), idInt64, "group_private")
-			HandleSendPrivateMsg(client, api, apiv2, messageCopy)
-		}
-	} else if echo.GetMapping(idInt64) <= 0 {
-		// 特殊值代表不递归
-		echo.AddMapping(idInt64, 10)
 	}
 
 	var resp *dto.C2CMessageResponse
@@ -407,7 +382,7 @@ func HandleSendPrivateMsg(client callapi.Client, api openapi.OpenAPI, apiv2 open
 				fileInfo, err := uploadMediaPrivate(context.TODO(), UserID, richMediaMessage, apiv2)
 				if err != nil {
 					mylog.Printf("上传图片失败: %v", err)
-					return "", nil // 或其他错误处理
+					return SendC2CResponse(client, err, &message, nil)
 				}
 				// 图文混合消息同样需要转换 [CQ:at] 为 @用户名，与纯文本路径对齐
 				// 否则 QQ 官方 API 不识别 CQ 码，会原文显示 [CQ:at,qq=数字]
@@ -692,7 +667,7 @@ func HandleSendPrivateMsg(client callapi.Client, api openapi.OpenAPI, apiv2 open
 				}
 
 				// 发媒体
-				message_return, err := apiv2.PostC2CMessage(context.TODO(), UserID, richMediaMessage)
+				message_return, err := postPrivateMediaWithFallback(context.TODO(), UserID, richMediaMessage, apiv2)
 				if err != nil {
 					mylog.Printf("发送 %s 信息失败_send_private_msg: %v", key, err)
 
@@ -756,25 +731,6 @@ func HandleSendPrivateMsg(client callapi.Client, api openapi.OpenAPI, apiv2 open
 		}
 	default:
 		mylog.Printf("Unknown message type: %s", msgType)
-	}
-
-	// 如果递归id不是10(不递归特殊值)
-	if echo.GetMapping(idInt64) != 10 {
-		//重置递归类型
-		if echo.GetMapping(idInt64) <= 0 {
-			echo.AddMsgType(config.GetAppIDStr(), idInt64, "")
-		}
-		echo.AddMapping(idInt64, echo.GetMapping(idInt64)-1)
-
-		//递归3次枚举类型
-		if echo.GetMapping(idInt64) > 0 {
-			tryMessageTypes := []string{"group"}
-			messageCopy := message // 创建message的副本
-			echo.AddMsgType(config.GetAppIDStr(), idInt64, tryMessageTypes[echo.GetMapping(idInt64)-1])
-			delay := config.GetSendDelay()
-			time.Sleep(time.Duration(delay) * time.Millisecond)
-			retmsg, _ = HandleSendPrivateMsg(client, api, apiv2, messageCopy)
-		}
 	}
 
 	return retmsg, nil
@@ -895,7 +851,7 @@ func uploadMediaPrivate(ctx context.Context, UserID string, richMediaMessage *dt
 		}
 	}
 	// URL 直传（默认路径）
-	messageReturn, err := apiv2.PostC2CMessage(ctx, UserID, richMediaMessage)
+	messageReturn, err := postPrivateMediaWithFallback(ctx, UserID, richMediaMessage, apiv2)
 	if err != nil {
 		return "", err
 	}
@@ -912,7 +868,7 @@ func postC2CRichMediaMessageWithRetry(
 	richMediaMessage.EventID = ""
 	retryCount := 3 // 设置最大重试次数为 3
 	for i := 0; i < retryCount; i++ {
-		resp, err = apiv2.PostC2CMessage(context.TODO(), userID, richMediaMessage)
+		resp, err = postPrivateMediaWithFallback(context.TODO(), userID, richMediaMessage, apiv2)
 
 		if err != nil && defaultRetryPolicy.ShouldRetry(err, i) {
 			// 仅对超时做重试

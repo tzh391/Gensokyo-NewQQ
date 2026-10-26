@@ -183,7 +183,7 @@ settings:
   arch_mode : new                   #分层架构接入模式: legacy(全走旧链,行为零变化)/shadow(新旧链并行,差异仅日志上报,行为仍走legacy)/new(默认,走 internal+adapter 新链).空值/非法值回退 new;热重载即时生效,可随时改回 legacy 回滚.
 
   #URL相关
-  visible_ip : false                #转换url时,如果server_dir是ip true将以ip形式发出url 默认隐藏url 将server_dir配置为自己域名可以转换url
+  visible_ip : false                #server_dir为IP时是否生成包含该IP的短链；false保留原始网址，不删除正文链接
   url_to_qrimage : false            #将信息中的url转换为二维码单独作为图片发出,需要同时设置  #SSL配置类 机器人发送URL设置 的 transfer_url 为 true visible_ip也需要为true
   qr_size : 200                     #二维码尺寸,单位像素
   transfer_url : true                #默认开启,关闭后自理url发送,配置server_dir为你的域名,配置crt和key后,将域名/url和/image在q.qq.com后台通过校验,自动使用302跳转处理机器人发出的所有域名.
@@ -237,7 +237,7 @@ settings:
   http_timeout: 5                   #反向 HTTP 超时时间, 单位秒，<5 时将被忽略
 
   #HTTP API配置-反向http
-  post_url: [""]                    #反向HTTP POST地址列表 为空代表不开启 示例:http://192.168.0.100:5789
+  post_url: []                      #反向HTTP POST地址列表 为空代表不开启 示例:http://192.168.0.100:5789
   post_secret: [""]                 #密钥
   post_max_retries: [3]             #最大重试,0 时禁用
   post_retries_interval: [1500]     #重试时间,单位毫秒,0 时立即

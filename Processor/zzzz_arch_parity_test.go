@@ -34,7 +34,7 @@ func parityLoadConfig(t *testing.T, mode, postURL string, convertOtherAt bool) {
 	t.Helper()
 	yml := strings.Replace(template.ConfigTemplate, "arch_mode : new", "arch_mode : "+mode, 1)
 	if postURL != "" {
-		yml = strings.Replace(yml, `post_url: [""]`, `post_url: ["`+postURL+`"]`, 1)
+		yml = strings.Replace(yml, `post_url: []`, `post_url: ["`+postURL+`"]`, 1)
 	}
 	if convertOtherAt {
 		yml = strings.Replace(yml, "convert_other_at : false", "convert_other_at : true", 1)

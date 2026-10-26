@@ -35,6 +35,10 @@ func ValidateSchema(dto ConfigDTO) error {
 		}
 	}
 	for i, u := range s.PostUrl {
+		u = strings.TrimSpace(u)
+		if u == "" {
+			continue
+		}
 		if !validHTTPURL(u) {
 			return newValidationError(fmt.Sprintf("config.transport.post_url[%d]", i),
 				fmt.Sprintf("invalid http(s) URL %q", u))

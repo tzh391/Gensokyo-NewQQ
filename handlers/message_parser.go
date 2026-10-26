@@ -225,6 +225,9 @@ func (c *HttpAPIClient) SendMessage(message map[string]interface{}) error {
 
 // 发送成功回执 todo 返回可互转的messageid 实现群撤回api
 func SendResponse(client callapi.Client, err error, message *callapi.ActionMessage, resp *dto.GroupMessageResponse, api openapi.OpenAPI, apiv2 openapi.OpenAPI) (string, error) {
+	if isMediaUploadFailure(err) {
+		resp = nil
+	}
 	var messageID64 int64
 	var mapErr error
 
@@ -374,16 +377,9 @@ func SendResponse(client callapi.Client, err error, message *callapi.ActionMessa
 	response.GroupID = GroupID64
 	response.Echo = message.Echo
 	if err != nil {
-		response.Message = err.Error() // 可选：在响应中添加错误消息
-		//response.RetCode = -1          // 可以是任何非零值，表示出错
-		//response.Status = "failed"
-		response.RetCode = 0 //官方api审核异步的 审核中默认返回失败,但其实信息发送成功了
-		response.Status = "ok"
-	} else {
-		response.Message = ""
-		response.RetCode = 0
-		response.Status = "ok"
+		response.Message = err.Error()
 	}
+	response.RetCode, response.Status = mediaUploadResponseStatus(err)
 
 	// 转化为map并发送
 	outputMap := structToMap(response)
@@ -400,12 +396,15 @@ func SendResponse(client callapi.Client, err error, message *callapi.ActionMessa
 		return "", sendErr
 	}
 
-	mylog.Printf("发送成功回执: %+v", string(jsonResponse))
+	mylog.Printf("发送消息回执: %+v", string(jsonResponse))
 	return string(jsonResponse), nil
 }
 
 // 发送成功回执 todo 返回可互转的messageid 实现群撤回api
 func SendResponseSB(client callapi.Client, err error, message *callapi.ActionMessage, resp *dto.GroupMessageResponse, api openapi.OpenAPI, apiv2 openapi.OpenAPI) (string, error) {
+	if isMediaUploadFailure(err) {
+		resp = nil
+	}
 	// 设置响应值
 	response := ServerResponseSB{}
 	if resp != nil {
@@ -420,16 +419,9 @@ func SendResponseSB(client callapi.Client, err error, message *callapi.ActionMes
 	response.GroupID = message.Params.GroupID.(string)
 	response.Echo = message.Echo
 	if err != nil {
-		response.Message = err.Error() // 可选：在响应中添加错误消息
-		//response.RetCode = -1          // 可以是任何非零值，表示出错
-		//response.Status = "failed"
-		response.RetCode = 0 //官方api审核异步的 审核中默认返回失败,但其实信息发送成功了
-		response.Status = "ok"
-	} else {
-		response.Message = ""
-		response.RetCode = 0
-		response.Status = "ok"
+		response.Message = err.Error()
 	}
+	response.RetCode, response.Status = mediaUploadResponseStatus(err)
 
 	// 转化为map并发送
 	outputMap := structToMap(response)
@@ -493,7 +485,7 @@ func SendResponseSB(client callapi.Client, err error, message *callapi.ActionMes
 		}
 	}
 
-	mylog.Printf("发送成功回执: %+v", string(jsonResponse))
+	mylog.Printf("发送消息回执: %+v", string(jsonResponse))
 	return string(jsonResponse), nil
 }
 
@@ -566,6 +558,9 @@ func SendGuildResponse(client callapi.Client, err error, message *callapi.Action
 
 // 发送成功回执 todo 返回可互转的messageid 实现C2C撤回api
 func SendC2CResponse(client callapi.Client, err error, message *callapi.ActionMessage, resp *dto.C2CMessageResponse) (string, error) {
+	if isMediaUploadFailure(err) {
+		resp = nil
+	}
 	var messageID64 int64
 	var mapErr error
 	// 设置响应值
@@ -592,24 +587,21 @@ func SendC2CResponse(client callapi.Client, err error, message *callapi.ActionMe
 		// 无真实 message_id 不再伪造固定假值,诚实置 0;RetCode/Status 保持现状(官方审核异步假失败但消息可能已发)
 		response.Data.MessageID = 0
 	}
-	//将真实id转为int userid64
-	userid64, errr := idmap.StoreIDv2(message.Params.UserID.(string))
+	// 数字 user_id 已是下游使用的虚拟 ID，不能再次映射。
+	userID := message.Params.UserID.(string)
+	userid64, errr := strconv.ParseInt(userID, 10, 64)
 	if errr != nil {
-		mylog.Errorf("Error storing ID: %v", err)
+		userid64, errr = idmap.StoreIDv2(userID)
+	}
+	if errr != nil {
+		mylog.Errorf("Error storing ID: %v", errr)
 	}
 	response.UserID = userid64
 	response.Echo = message.Echo
 	if err != nil {
-		response.Message = err.Error() // 可选：在响应中添加错误消息
-		//response.RetCode = -1          // 可以是任何非零值，表示出错
-		//response.Status = "failed"
-		response.RetCode = 0 //官方api审核异步的 审核中默认返回失败,但其实信息发送成功了
-		response.Status = "ok"
-	} else {
-		response.Message = ""
-		response.RetCode = 0
-		response.Status = "ok"
+		response.Message = err.Error()
 	}
+	response.RetCode, response.Status = mediaUploadResponseStatus(err)
 
 	// 转化为map并发送
 	outputMap := structToMap(response)
@@ -626,7 +618,7 @@ func SendC2CResponse(client callapi.Client, err error, message *callapi.ActionMe
 		return "", sendErr
 	}
 
-	mylog.Printf("发送成功回执: %+v", string(jsonResponse))
+	mylog.Printf("发送消息回执: %+v", string(jsonResponse))
 	return string(jsonResponse), nil
 }
 
@@ -1684,9 +1676,9 @@ func transformMessageTextUrl(messageText string, message callapi.ActionMessage, 
 
 		// 使用xurls来查找和替换所有的URL
 		messageText = xurls.Relaxed.ReplaceAllStringFunc(messageText, func(originalURL string) string {
-			// 当服务器地址是IP地址且GetVisibleIP为false时，替换URL为空
+			// 隐藏服务器 IP 时保留原始链接，避免无法生成短链就删除正文 URL。
 			if isIP && !VisualIP {
-				return ""
+				return originalURL
 			}
 
 			// 如果启用了URL到QR码的转换
