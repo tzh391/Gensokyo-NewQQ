@@ -1676,9 +1676,9 @@ func transformMessageTextUrl(messageText string, message callapi.ActionMessage, 
 
 		// 使用xurls来查找和替换所有的URL
 		messageText = xurls.Relaxed.ReplaceAllStringFunc(messageText, func(originalURL string) string {
-			// 当服务器地址是IP地址且GetVisibleIP为false时，替换URL为空
+			// 隐藏服务器 IP 时保留原始链接，避免无法生成短链就删除正文 URL。
 			if isIP && !VisualIP {
-				return ""
+				return originalURL
 			}
 
 			// 如果启用了URL到QR码的转换

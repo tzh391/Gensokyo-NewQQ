@@ -56,6 +56,15 @@ func downloadRemoteImage(ctx context.Context, rawURL string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("下载远程图片失败: %w", err)
 	}
+	if resp.StatusCode == 567 {
+		resp.Body.Close()
+		mylog.Printf("源站返回 HTTP 567，尝试系统 curl 下载图片")
+		curlClient := &http.Client{Timeout: httpClient.Timeout, CheckRedirect: httpClient.CheckRedirect, Transport: curlImageTransport{}}
+		resp, err = curlClient.Do(req.Clone(ctx))
+		if err != nil {
+			return nil, fmt.Errorf("HTTP 567 后 curl 图片下载失败: %w", err)
+		}
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("下载远程图片返回 HTTP %d", resp.StatusCode)

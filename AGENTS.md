@@ -341,6 +341,7 @@ Handler 签名：`func(client callapi.Client, api openapi.OpenAPI, apiv2 openapi
 ### 消息系统特殊机制
 
 - **网络图片中转**：`handlers/remote_image.go` 在 QQ URL 拉取失败（40093007/850026）后执行一次本机下载上传；群聊/私聊与 new/legacy 共用，下载上限 20 MiB。媒体上传错误必须向回执传播，不能在 `SendFoundItems*` 中丢弃或报告成功。
+- **URL 保留**：`outbound_bridge.go` 往返转换必须保留 HTTP/HTTPS（legacy 的 HTTPS 使用 `url_*s` key）；隐藏服务器 IP 时保留外部原网址。HTTP 567 的系统 curl 回退见 `remote_image_curl.go`，不启用 curl 自动重定向或关闭 TLS 校验。
 - **`LazyMessageId` 系统**：`config.GetLazyMessageId()` 启用被动转主动消息，`messageID == "2000"` 是特殊值表示主动推送。2026-08-02 修复：`GetLazyMessagesId`/`GetLazyMessagesIdv2` 移除选中后的 `usageCount++`，让同一回复链的多段回复复用同一 `msg_id`，配合 `GetMappingSeq`/`AddMappingSeq` 连续递增 `msg_seq`，避免偶发 `40054005 msgseq 去重`（Issue #19）
 - **`SSM`（Send Stack Messages）**：当消息发送失败（`code:22009`）时，消息会入队等待下次被动回复时补发
 - **`removeAt` 与 `convertOtherAt`**：`GetRemoveAt()` 控制入站时是否剥离 @bot（仅对 `GROUP_AT_MESSAGE_CREATE` 事件生效；`GROUP_MESSAGE_CREATE` 全量群消息中的 @Bot 始终剥离，不依赖此配置），`GetConvertOtherAt()` 控制是否将 @其他人 转为 CQ 码
