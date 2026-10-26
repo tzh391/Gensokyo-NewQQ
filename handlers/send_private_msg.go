@@ -382,7 +382,7 @@ func HandleSendPrivateMsg(client callapi.Client, api openapi.OpenAPI, apiv2 open
 				fileInfo, err := uploadMediaPrivate(context.TODO(), UserID, richMediaMessage, apiv2)
 				if err != nil {
 					mylog.Printf("上传图片失败: %v", err)
-					return "", nil // 或其他错误处理
+					return SendC2CResponse(client, err, &message, nil)
 				}
 				// 图文混合消息同样需要转换 [CQ:at] 为 @用户名，与纯文本路径对齐
 				// 否则 QQ 官方 API 不识别 CQ 码，会原文显示 [CQ:at,qq=数字]
@@ -667,7 +667,7 @@ func HandleSendPrivateMsg(client callapi.Client, api openapi.OpenAPI, apiv2 open
 				}
 
 				// 发媒体
-				message_return, err := apiv2.PostC2CMessage(context.TODO(), UserID, richMediaMessage)
+				message_return, err := postPrivateMediaWithFallback(context.TODO(), UserID, richMediaMessage, apiv2)
 				if err != nil {
 					mylog.Printf("发送 %s 信息失败_send_private_msg: %v", key, err)
 
@@ -851,7 +851,7 @@ func uploadMediaPrivate(ctx context.Context, UserID string, richMediaMessage *dt
 		}
 	}
 	// URL 直传（默认路径）
-	messageReturn, err := apiv2.PostC2CMessage(ctx, UserID, richMediaMessage)
+	messageReturn, err := postPrivateMediaWithFallback(ctx, UserID, richMediaMessage, apiv2)
 	if err != nil {
 		return "", err
 	}
@@ -868,7 +868,7 @@ func postC2CRichMediaMessageWithRetry(
 	richMediaMessage.EventID = ""
 	retryCount := 3 // 设置最大重试次数为 3
 	for i := 0; i < retryCount; i++ {
-		resp, err = apiv2.PostC2CMessage(context.TODO(), userID, richMediaMessage)
+		resp, err = postPrivateMediaWithFallback(context.TODO(), userID, richMediaMessage, apiv2)
 
 		if err != nil && defaultRetryPolicy.ShouldRetry(err, i) {
 			// 仅对超时做重试

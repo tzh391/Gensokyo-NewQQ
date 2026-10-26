@@ -553,7 +553,10 @@ func SendFoundItemsGroup(ctx context.Context, groupOpenID, messageText string, f
 			msgseq := nextMappingSeq(messageID)
 			reply := generateGroupMessage(messageID, eventID, singleItem, "", msgseq, apiv2, groupOpenID)
 			if rich, ok := reply.(*dto.RichMediaMessage); ok {
-				mr, err := apiv2.PostGroupMessage(ctx, groupOpenID, rich)
+				mr, err := postGroupMediaWithFallback(ctx, groupOpenID, rich, apiv2)
+				if err != nil {
+					return lastID, err
+				}
 				if err == nil && mr != nil && mr.MediaResponse != nil && mr.MediaResponse.FileInfo != "" {
 					msgseq = nextMappingSeq(messageID)
 					content := rich.Content
@@ -670,7 +673,10 @@ func SendFoundItemsPrivate(ctx context.Context, userOpenID, messageText string, 
 			msgseq := nextMappingSeq(messageID)
 			reply := generatePrivateMessage(messageID, eventID, singleItem, "", msgseq, apiv2, userOpenID)
 			if rich, ok := reply.(*dto.RichMediaMessage); ok {
-				mr, err := apiv2.PostC2CMessage(ctx, userOpenID, rich)
+				mr, err := postPrivateMediaWithFallback(ctx, userOpenID, rich, apiv2)
+				if err != nil {
+					return lastID, err
+				}
 				if err == nil && mr != nil && mr.MediaResponse != nil && mr.MediaResponse.FileInfo != "" {
 					msgseq = nextMappingSeq(messageID)
 					content := rich.Content

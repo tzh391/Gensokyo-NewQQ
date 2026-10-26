@@ -225,6 +225,9 @@ func (c *HttpAPIClient) SendMessage(message map[string]interface{}) error {
 
 // 发送成功回执 todo 返回可互转的messageid 实现群撤回api
 func SendResponse(client callapi.Client, err error, message *callapi.ActionMessage, resp *dto.GroupMessageResponse, api openapi.OpenAPI, apiv2 openapi.OpenAPI) (string, error) {
+	if isMediaUploadFailure(err) {
+		resp = nil
+	}
 	var messageID64 int64
 	var mapErr error
 
@@ -374,16 +377,9 @@ func SendResponse(client callapi.Client, err error, message *callapi.ActionMessa
 	response.GroupID = GroupID64
 	response.Echo = message.Echo
 	if err != nil {
-		response.Message = err.Error() // 可选：在响应中添加错误消息
-		//response.RetCode = -1          // 可以是任何非零值，表示出错
-		//response.Status = "failed"
-		response.RetCode = 0 //官方api审核异步的 审核中默认返回失败,但其实信息发送成功了
-		response.Status = "ok"
-	} else {
-		response.Message = ""
-		response.RetCode = 0
-		response.Status = "ok"
+		response.Message = err.Error()
 	}
+	response.RetCode, response.Status = mediaUploadResponseStatus(err)
 
 	// 转化为map并发送
 	outputMap := structToMap(response)
@@ -400,12 +396,15 @@ func SendResponse(client callapi.Client, err error, message *callapi.ActionMessa
 		return "", sendErr
 	}
 
-	mylog.Printf("发送成功回执: %+v", string(jsonResponse))
+	mylog.Printf("发送消息回执: %+v", string(jsonResponse))
 	return string(jsonResponse), nil
 }
 
 // 发送成功回执 todo 返回可互转的messageid 实现群撤回api
 func SendResponseSB(client callapi.Client, err error, message *callapi.ActionMessage, resp *dto.GroupMessageResponse, api openapi.OpenAPI, apiv2 openapi.OpenAPI) (string, error) {
+	if isMediaUploadFailure(err) {
+		resp = nil
+	}
 	// 设置响应值
 	response := ServerResponseSB{}
 	if resp != nil {
@@ -420,16 +419,9 @@ func SendResponseSB(client callapi.Client, err error, message *callapi.ActionMes
 	response.GroupID = message.Params.GroupID.(string)
 	response.Echo = message.Echo
 	if err != nil {
-		response.Message = err.Error() // 可选：在响应中添加错误消息
-		//response.RetCode = -1          // 可以是任何非零值，表示出错
-		//response.Status = "failed"
-		response.RetCode = 0 //官方api审核异步的 审核中默认返回失败,但其实信息发送成功了
-		response.Status = "ok"
-	} else {
-		response.Message = ""
-		response.RetCode = 0
-		response.Status = "ok"
+		response.Message = err.Error()
 	}
+	response.RetCode, response.Status = mediaUploadResponseStatus(err)
 
 	// 转化为map并发送
 	outputMap := structToMap(response)
@@ -493,7 +485,7 @@ func SendResponseSB(client callapi.Client, err error, message *callapi.ActionMes
 		}
 	}
 
-	mylog.Printf("发送成功回执: %+v", string(jsonResponse))
+	mylog.Printf("发送消息回执: %+v", string(jsonResponse))
 	return string(jsonResponse), nil
 }
 
@@ -566,6 +558,9 @@ func SendGuildResponse(client callapi.Client, err error, message *callapi.Action
 
 // 发送成功回执 todo 返回可互转的messageid 实现C2C撤回api
 func SendC2CResponse(client callapi.Client, err error, message *callapi.ActionMessage, resp *dto.C2CMessageResponse) (string, error) {
+	if isMediaUploadFailure(err) {
+		resp = nil
+	}
 	var messageID64 int64
 	var mapErr error
 	// 设置响应值
@@ -604,16 +599,9 @@ func SendC2CResponse(client callapi.Client, err error, message *callapi.ActionMe
 	response.UserID = userid64
 	response.Echo = message.Echo
 	if err != nil {
-		response.Message = err.Error() // 可选：在响应中添加错误消息
-		//response.RetCode = -1          // 可以是任何非零值，表示出错
-		//response.Status = "failed"
-		response.RetCode = 0 //官方api审核异步的 审核中默认返回失败,但其实信息发送成功了
-		response.Status = "ok"
-	} else {
-		response.Message = ""
-		response.RetCode = 0
-		response.Status = "ok"
+		response.Message = err.Error()
 	}
+	response.RetCode, response.Status = mediaUploadResponseStatus(err)
 
 	// 转化为map并发送
 	outputMap := structToMap(response)
@@ -630,7 +618,7 @@ func SendC2CResponse(client callapi.Client, err error, message *callapi.ActionMe
 		return "", sendErr
 	}
 
-	mylog.Printf("发送成功回执: %+v", string(jsonResponse))
+	mylog.Printf("发送消息回执: %+v", string(jsonResponse))
 	return string(jsonResponse), nil
 }
 
